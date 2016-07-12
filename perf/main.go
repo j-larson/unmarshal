@@ -2,7 +2,8 @@ package main
 
 import (
 	"encoding/csv"
-	"encoding/json"
+	// "encoding/json"
+	"github.com/j-larson/unmarshal/json"
 	"fmt"
 	"os"
 	"time"
