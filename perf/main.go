@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 )
 
 func main() {
@@ -13,30 +14,39 @@ func main() {
 		fmt.Printf("Unable to open CSV file: %v\n", err)
 		return
 	}
-
 	csvReader := csv.NewReader(file)
 	csvRecords, err := csvReader.ReadAll()
 	if err != nil {
 		fmt.Printf("Unable to read CSV file: %v\n", err)
 		return
 	}
+	NUM_SOURCE_RECORDS := len(csvRecords)
+	fmt.Printf("Read %d records.\n", NUM_SOURCE_RECORDS)
 
-
-	fmt.Printf("Read %d records.\n", len(csvRecords))
-
+	bytesArrs := make([][]byte, NUM_SOURCE_RECORDS)
 	for i, r := range csvRecords {
-		jsonString := r[4]
+		bytesArrs[i] = []byte(r[4])
+	}
 
-		bytes := []byte(jsonString)
-		var target interface{}
+	NUM_TARGET_RECORDS := 1000
+	targetArr := make([]interface{}, NUM_TARGET_RECORDS)
+	fmt.Printf("Unmarshalling into %d records.\n", NUM_TARGET_RECORDS)
 
-		err := json.Unmarshal(bytes, &target)
+	NUM_ITERATIONS := 1000 * 1000;
+	fmt.Printf("Unmarshalling %d times.\n", NUM_ITERATIONS)
+	
+	start := time.Now()
+	for i := 0; i < NUM_ITERATIONS; i++ {
+		srcIx := i % NUM_SOURCE_RECORDS
+		dstIx := i % NUM_TARGET_RECORDS
+		err := json.Unmarshal(bytesArrs[srcIx], &targetArr[dstIx])
 		if err != nil {
-			fmt.Printf("Unable to unmarshal value %d: %s: %v", i, jsonString, err)
+			fmt.Printf("Unable to unmarshal value %d: %v", i, err)
 			return
 		}
 	}
+	testDuration := time.Since(start)
 
-	fmt.Printf("Done.\n")
+	fmt.Printf("Test duration: %f s\n", testDuration.Seconds())
 }
 
