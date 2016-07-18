@@ -40,6 +40,7 @@ func main() {
 	for i := 0; i < NUM_ITERATIONS; i++ {
 		srcIx := i % NUM_SOURCE_RECORDS
 		dstIx := i % NUM_TARGET_RECORDS
+		json.RecycleJson(targetArr[dstIx])
 		err := json.Unmarshal(bytesArrs[srcIx], &targetArr[dstIx])
 		if err != nil {
 			fmt.Printf("Unable to unmarshal value %d: %v", i, err)
@@ -49,5 +50,6 @@ func main() {
 	testDuration := time.Since(start)
 
 	fmt.Printf("Test duration: %f s\n", testDuration.Seconds())
+	//json.Report()
 }
 

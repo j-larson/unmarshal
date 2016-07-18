@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -920,9 +921,100 @@ func (d *decodeState) valueInterface() interface{} {
 	}
 }
 
+//var ARRAY_INTERFACE_CAPACITY = 3
+
+func newArrayInterface() interface{} {
+	//return make([]interface{}, 0, ARRAY_INTERFACE_CAPACITY)
+	//arrayAllocations++
+	return make([]interface{}, 0)
+}
+
+var arrayInterfacePool = &sync.Pool{ New: newArrayInterface }
+var arrayGets int64
+var arrayPuts int64
+var arrayAllocations int64
+
+func getJsonArray() []interface{} {
+	//arrayGets++
+	return (arrayInterfacePool.Get()).([]interface{})
+}
+
+func putJsonArray(v []interface{}) {
+	//arrayPuts++
+/*
+	if len(v) > ARRAY_INTERFACE_CAPACITY {
+		// Extra long. We don't want it back.
+		return 
+	} 
+*/
+	arrayInterfacePool.Put(v[0:0])
+}
+
+//var OBJECT_MAP_DEFAULT_SIZE = 3
+func newObjectTemp() interface{} {
+	//return make(map[string]interface{}, OBJECT_MAP_DEFAULT_SIZE)
+	//objectAllocations++
+	return make(map[string]interface{})
+}
+
+var objectInterfacePool = &sync.Pool{ New: newObjectTemp }
+var objectGets int64
+var objectPuts int64
+var objectAllocations int64
+
+func getJsonMap() map[string]interface{} {
+	//objectGets++
+	return (objectInterfacePool.Get()).(map[string]interface{})
+}
+
+func putJsonMap(m map[string]interface{}) {
+	//objectPuts++
+/*
+	if len(m) > OBJECT_MAP_DEFAULT_SIZE {
+		// Oversized map. We don't want it back. Do nothing.
+		return
+	}
+*/
+	for k, _ := range m {
+		delete(m, k)
+	}
+	objectInterfacePool.Put(m)
+}
+
+func Report() {
+	fmt.Printf("array gets %d\n", arrayGets)
+	fmt.Printf("array puts %d\n", arrayPuts)
+	fmt.Printf("array allocs %d\n", arrayAllocations)
+	fmt.Printf("object gets %d\n", objectGets)
+	fmt.Printf("object puts %d\n", objectPuts)
+	fmt.Printf("object allocs %d\n", objectAllocations)
+}
+
+func RecycleJson(o interface{}) {
+	// It's a JSON object, a map.
+	m, ok := o.(map[string]interface{})
+	if ok {
+		for _, v := range m {
+			RecycleJson(v)
+		}
+		putJsonMap(m)
+	}
+
+	// It's a JSON array.
+	a, ok := o.([]interface{})
+	if ok {
+		for _, v := range a {
+			RecycleJson(v)
+		}
+		putJsonArray(a)
+	}
+	
+	// Don't care about other possibilities.
+}
+
 // arrayInterface is like array but returns []interface{}.
 func (d *decodeState) arrayInterface() []interface{} {
-	var v = make([]interface{}, 0)
+	var v = getJsonArray()
 	for {
 		// Look ahead for ] - can only happen on first iteration.
 		op := d.scanWhile(scanSkipSpace)
@@ -950,7 +1042,7 @@ func (d *decodeState) arrayInterface() []interface{} {
 
 // objectInterface is like object but returns map[string]interface{}.
 func (d *decodeState) objectInterface() map[string]interface{} {
-	m := make(map[string]interface{})
+	m := getJsonMap()
 	for {
 		// Read opening " of string key or closing }.
 		op := d.scanWhile(scanSkipSpace)
